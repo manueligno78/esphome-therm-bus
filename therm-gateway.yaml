@@ -12,9 +12,11 @@
 # and edit the copy. Renaming entities later creates new ones in Home Assistant.
 
 substitutions:
-  # Gas estimate: the heater reports burner power as % of nominal; the
-  # nameplate input is Qn 30 kW, so 1 % = 0.30 kW of gas. G20 methane:
-  # Hi = 9.45 kWh/m3. Checked against the gas meter on 2026-10-21: 10 min
+  # Gas estimate: the heater reports burner power as % of its nominal input
+  # Qn (nameplate), so gas_kw_per_percent = Qn / 100:
+  #   12 L/min: Qn 23 kW -> 0.23   15 L/min: Qn 30 kW -> 0.30   17 L/min: Qn 32 kW -> 0.32
+  # G20 methane: Hi = 9.45 kWh/m3 (LPG G31 propane: ~24.4).
+  # Checked against the gas meter on 2026-10-21 (T5600 O 15 V23): 10 min
   # shower at ~70 %, meter 0.383 m3, estimate 0.383 m3 (0.388 counting a
   # 25 s draw right after).
   gas_kw_per_percent: "0.30"

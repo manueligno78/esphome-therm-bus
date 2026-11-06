@@ -8,11 +8,42 @@ and an estimate of gas consumption that has been checked against a real gas mete
 > **Status:** read-only gateway working since October 2026 on a Bosch Therm 5600 O
 > (T5600 O 15 V23). Control (on/off, setpoint) is planned: the commands are already
 > decoded in [PROTOCOL.md](PROTOCOL.md), the transmit circuit is not built yet.
-> Other Therm models with the same 2-wire remote may work: reports are welcome.
+> Other models of the same family probably work: see [Compatibility](#compatibility).
 
 This is **not** the EMS bus used by Bosch/Buderus/Junkers boilers (for that, see
 [EMS-ESP32](https://github.com/emsesp/EMS-ESP32)). This bus runs at 4800 baud with
 `F5`/`FA` frames and an additive checksum.
+
+## Compatibility
+
+Only one heater has been tested so far. Everything else in this table comes from
+Bosch's own manuals, not from hardware. If you try another model, please open an
+issue with the model code from the nameplate and a few values of the "Heater frame"
+entity.
+
+| Model | Status | Why |
+|---|---|---|
+| Therm 5600 O 15 V23 | **Tested** | the heater this was built on |
+| Therm 5600 O 12 / 15 / 17, V23 (natural gas) and V31 (LPG) | Expected to work | same manual (6720888277) and same wired remote, which ships with the heater; only burner size and gas type differ. Set the gas factor for your size, see [Gas estimate](#gas-estimate) |
+| Therm 5600 S 12 / 15 / 17 (indoor) | Likely, untested | same wiring diagram as the 5600 O, and its manual (6720888186) lists a remote control as an optional accessory. Without that remote there is no cable to tap: the control panel is on the front of the heater |
+| Therm 5700 S, Junkers Hydronext 5600 S / 5700 S (WTD 12/15/17-3 AME, -4 AME) | Unknown | one Bosch service manual covers them together with the 5600 S; remote support not checked |
+| Vulcano Sensor Compacto (WTD … AME) | Unknown | same WTD … AME model codes as the Junkers versions |
+| Therm 6600 S | Unknown | newer generation with a different display, probably different electronics |
+| Therm 4200 / 4300 | No | no mains-powered control board (battery or hydro-generator ignition) |
+| Bosch / Buderus / Junkers boilers | No | EMS bus, see EMS-ESP32 |
+
+Checking a heater that is not in the table, if it has a 2-wire remote:
+
+1. Measure the bus voltage at the remote first. The divider is sized for ~12 V:
+   above ~13.5 V the ESP32 pin goes past 3.3 V, so change the resistors.
+2. Connect the gateway in parallel with the remote and watch "Heater frame". If it
+   stays empty, record the bus with the [sniffer](sniffer/).
+3. A compatible heater sends a frame starting with `F5 21` every ~185 ms at
+   4800 baud 8N1, and the bytes after `F5` sum to 0 mod 256
+   (see [PROTOCOL.md](PROTOCOL.md)).
+
+Do not open the casing of a gas appliance to probe inside it: there are 230 V and
+the gas valve in there.
 
 ## What you get in Home Assistant
 
@@ -118,16 +149,27 @@ example config lets you override the build directory with
 
 ## Gas estimate
 
-The heater reports burner power as a percentage of its nominal input. For the
-Therm 5600 O the nameplate says Qn = 30 kW, so
+The heater reports burner power as a percentage of its nominal heat input Qn.
+Qn is on the nameplate and depends on the size:
+
+| Therm 5600 O / 5600 S | Qn | `gas_kw_per_percent` |
+|---|---|---|
+| 12 L/min | 23 kW | 0.23 |
+| 15 L/min | 30 kW | 0.30 (checked on a gas meter) |
+| 17 L/min | 32 kW | 0.32 |
 
 ```
-gas power [kW]  = burner % × 0.30
-gas used  [m³]  = ∫ gas power dt / 9.45 kWh/m³   (G20 natural gas)
+gas power [kW]  = burner % × gas_kw_per_percent
+gas used  [m³]  = ∫ gas power dt / gas_kwh_per_m3
 ```
 
-Both numbers are substitutions in the example config. Checked on 2026-10-21 with
-the household smart gas meter: a 10-minute shower at ~70 % burner power read
+Both are substitutions in the example config. Only the 15 L factor has been
+measured; the others assume the same "% of Qn" scale. `gas_kwh_per_m3` is 9.45
+for G20 natural gas. On LPG (V31), "Gas energy" in kWh is still right, but for
+cubic metres use propane's ~24.4 kWh/m³ (G31).
+
+Checked on 2026-10-21 on a T5600 O 15 V23 with the household smart gas meter:
+a 10-minute shower at ~70 % burner power read
 **0.383 m³ on the meter and 0.383 m³ on the gateway**. Water flow and litres were
 confirmed in the same run (105 L counted vs ~110 L from the flow readings).
 

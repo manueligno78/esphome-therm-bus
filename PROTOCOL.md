@@ -32,7 +32,7 @@ chk  (len + payload + chk) mod 256 == 0
 | 16 | 00 | **flow l/min** (6-7 one tap fully open, 10-13 shower); consistent with b27 within 5 % |
 | 17 | 00 | fan speed (?): up to 4A, post-purge ~20 s after flame off, then ramps to 0 |
 | 18 | 40 | ? |
-| 19 | 00 | **burner power, % of nominal**: heat to water ≈ b19 × 0.27 kW (checked at 6 l/min, ΔT 30 K); gas in = b19 × 0.30 kW, **verified on the gas meter** (10 min shower at ~70 %: meter 0.383 m³, estimate 0.383 m³). Already non-zero during ignition, before the flame flag |
+| 19 | 00 | **burner power, % of nominal**: heat to water ≈ b19 × 0.27 kW (checked at 6 l/min, ΔT 30 K); gas in = b19 × Qn / 100 (0.30 kW on the 15 L model, Qn 30 kW), **verified on the gas meter** (10 min shower at ~70 %: meter 0.383 m³, estimate 0.383 m³). Already non-zero during ignition, before the flame flag |
 | 27 | 00 | **litres drawn in this tap opening**, reset when the tap closes (shower: 105 L vs ∫b16 ≈ 110 L) |
 | 31 | 24 | min setpoint 36 °C |
 | 32 | 3C | max setpoint 60 °C |
