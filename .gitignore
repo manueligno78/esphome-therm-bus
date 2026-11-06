@@ -1,0 +1,15 @@
+# ESPHome
+.esphome/
+secrets.yaml
+
+# Sniffer
+.pio/
+captures/
+*.npz
+
+# Python
+__pycache__/
+.venv/
+
+# Personal configs (e.g. with your own entity names)
+*.local.yaml

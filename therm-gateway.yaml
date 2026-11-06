@@ -1,0 +1,146 @@
+# Bosch Therm 5600 O gateway for Home Assistant (read-only for now).
+#
+# Wiring: bus red (+) -> 47k -> GPIO34 -> 15k -> GND = bus black (-).
+# Bus idles ~11.8 V -> ~2.9 V on the pin, remote's 2.3 V low -> ~0.6 V:
+# clean logic levels for UART RX.
+#
+# Wi-Fi: no credentials here. On first boot the board opens the access point
+# "Therm Gateway Setup"; connect with a phone and pick the home network.
+# Secrets: copy secrets.yaml.example to secrets.yaml and fill it in.
+#
+# Want your own entity names? Copy this file to <name>.local.yaml (git-ignored)
+# and edit the copy. Renaming entities later creates new ones in Home Assistant.
+
+substitutions:
+  # Gas estimate: the heater reports burner power as % of nominal; the
+  # nameplate input is Qn 30 kW, so 1 % = 0.30 kW of gas. G20 methane:
+  # Hi = 9.45 kWh/m3. Checked against the gas meter on 2026-10-21: 10 min
+  # shower at ~70 %, meter 0.383 m3, estimate 0.383 m3 (0.388 counting a
+  # 25 s draw right after).
+  gas_kw_per_percent: "0.30"
+  gas_kwh_per_m3: "9.45"
+  # ESP-IDF builds break past Windows' 260-char path limit. On Windows,
+  # override with a short path: esphome -s build_path C:/tgbuild compile ...
+  build_path: .esphome/build/therm-gateway
+
+esphome:
+  name: therm-gateway
+  friendly_name: Water Heater
+  build_path: ${build_path}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ap:
+    ssid: "Therm Gateway Setup"
+    password: !secret ap_password
+
+captive_portal:
+
+# Building from a copy of this file outside the repository (e.g. in the Home
+# Assistant ESPHome add-on)? Use instead:
+#   - source: github://manueligno78/esphome-therm-bus
+external_components:
+  - source:
+      type: local
+      path: components
+
+uart:
+  id: bus_uart
+  rx_pin: GPIO34
+  baud_rate: 4800
+
+therm_bus:
+  uart_id: bus_uart
+
+sensor:
+  - platform: therm_bus
+    setpoint:
+      name: "Setpoint"
+    outlet_temperature:
+      name: "Outlet temperature"
+    inlet_temperature:
+      name: "Inlet temperature"
+    casing_temperature:
+      name: "Casing temperature"
+    flow:
+      name: "Water flow"
+    fan:
+      name: "Fan"
+    modulation:
+      name: "Burner power"
+      id: burner_percent
+      unit_of_measurement: "%"
+    litres:
+      name: "Hot water"
+  - platform: template
+    name: "Gas power"
+    id: gas_power
+    unit_of_measurement: kW
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: |-
+      if (!id(bus_ok).state || isnan(id(burner_percent).state))
+        return 0.0f;
+      return id(burner_percent).state * ${gas_kw_per_percent};
+  # "left": the power value holds until the next update, so a long idle
+  # stretch followed by a jump is not averaged into phantom consumption.
+  - platform: integration
+    name: "Gas energy"
+    id: gas_energy
+    sensor: gas_power
+    time_unit: h
+    integration_method: left
+    restore: true
+    unit_of_measurement: kWh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 3
+  - platform: copy
+    source_id: gas_energy
+    name: "Gas used"
+    unit_of_measurement: "m³"
+    device_class: gas
+    state_class: total_increasing
+    accuracy_decimals: 3
+    filters:
+      - lambda: return x / ${gas_kwh_per_m3};
+  - platform: wifi_signal
+    name: "Wi-Fi signal"
+    update_interval: 60s
+
+binary_sensor:
+  - platform: therm_bus
+    power:
+      name: "Power"
+    water_flow:
+      name: "Water flowing"
+    fan_running:
+      name: "Fan running"
+    flame:
+      name: "Flame"
+    bus_connected:
+      name: "Bus connected"
+      id: bus_ok
+
+text_sensor:
+  - platform: therm_bus
+    heater_frame:
+      name: "Heater frame"
+    remote_frame:
+      name: "Remote frame"
